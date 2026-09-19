@@ -1,0 +1,28 @@
+node_modules/
+dist/
+*.local
+*.log
+.DS_Store
+.env
+.env.*
+.vite/
+coverage/
+*.tsbuildinfo
+
+# ---------------------------------------------------------------------------
+# REPO PÚBLICO. Las fotos de mi ropa viven solo en IndexedDB del dispositivo.
+# Se ignora cualquier imagen en cualquier ruta; los iconos de la PWA son la
+# única excepción.
+# ---------------------------------------------------------------------------
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.avif
+*.gif
+!public/icons/**
+
+# Copias de seguridad exportadas desde la app (Fase 5). Nunca al repo.
+armario-*.zip
+export-*.json
+backup-*.json

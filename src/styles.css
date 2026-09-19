@@ -1,0 +1,48 @@
+@import 'tailwindcss';
+
+/*
+ * Colores del tema. La paleta neutra (stone) evita competir con las fotos de
+ * la ropa, que son el contenido. Se respeta `prefers-color-scheme` sin más;
+ * el modo oscuro dedicado queda fuera de alcance por ahora.
+ */
+:root {
+  --bg: #fafaf9;
+  --surface: #ffffff;
+  --ink: #1c1917;
+  --muted: #78716c;
+  --line: #e7e5e4;
+  --accent: #b45309;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1917;
+    --surface: #292524;
+    --ink: #fafaf9;
+    --muted: #a8a29e;
+    --line: #44403c;
+    --accent: #f59e0b;
+  }
+}
+
+/* `inline` hace que las utilidades (bg-surface, text-muted...) usen var(--bg)
+   tal cual, así el esquema de color cambia solo sin duplicar clases dark:. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
