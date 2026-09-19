@@ -46,3 +46,33 @@ body {
   overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Piezas repetidas en formularios y botones. Van como @utility (no como
+   clases sueltas) porque en Tailwind 4 solo así se pueden encadenar con
+   @apply. Pocas y sin variantes: si hace falta algo distinto en un sitio, se
+   escribe ahí con utilidades. */
+@utility btn {
+  @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 font-medium
+    transition-colors select-none disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-accent text-white active:opacity-90;
+}
+@utility btn-secondary {
+  @apply btn border border-line bg-surface text-ink active:bg-line;
+}
+@utility btn-danger {
+  @apply btn text-red-600 active:bg-red-50 dark:text-red-400 dark:active:bg-red-950;
+}
+@utility field {
+  @apply w-full rounded-xl border border-line bg-surface px-3 py-3 text-base text-ink
+    placeholder:text-muted focus:border-accent focus:outline-none;
+}
+@utility chip {
+  @apply rounded-full border border-line bg-surface px-3 py-1.5 text-sm text-ink
+    aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-white
+    aria-checked:border-accent aria-checked:bg-accent aria-checked:text-white;
+}
+@utility label {
+  @apply mb-1.5 block text-sm font-medium text-muted;
+}

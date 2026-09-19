@@ -2,6 +2,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom';
 import { Layout } from './ui/Layout';
 import { HomePage } from './pages/HomePage';
 import { WardrobePage } from './pages/WardrobePage';
+import { NewGarmentPage } from './pages/NewGarmentPage';
 import { OutfitsPage } from './pages/OutfitsPage';
 import { GarmentPage } from './pages/GarmentPage';
 
@@ -17,6 +18,7 @@ export function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/armario" element={<WardrobePage />} />
+          <Route path="/armario/nueva" element={<NewGarmentPage />} />
           <Route path="/outfits" element={<OutfitsPage />} />
           <Route path="/prenda/:id" element={<GarmentPage />} />
         </Route>
