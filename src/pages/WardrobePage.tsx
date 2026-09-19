@@ -7,6 +7,7 @@ import { CATEGORY_LABELS } from '../db/labels';
 import { setPendingPhoto } from '../lib/pendingPhoto';
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { PhotoPicker } from '../ui/PhotoPicker';
+import { CutoutBadge } from '../ui/CutoutStatus';
 
 export function WardrobePage() {
   // Las más recientes primero dentro de cada categoría.
@@ -138,16 +139,21 @@ function GarmentGrid({ items }: { items: Garment[] }) {
 
 function GarmentCard({ garment }: { garment: Garment }) {
   const src = useObjectUrl(garment.thumbnail);
+  // El recorte va entero y con aire; la foto original, a sangre.
+  const cutout = garment.useCutout && garment.imageCutout !== null;
   return (
     <Link to={`/prenda/${garment.id}`} className="block">
-      <div className="aspect-square overflow-hidden rounded-xl bg-surface">
+      <div className="relative aspect-square overflow-hidden rounded-xl bg-surface">
         {src && (
           <img
             src={src}
             alt=""
-            className={`h-full w-full object-cover ${garment.archived ? 'opacity-50 grayscale' : ''}`}
+            className={`h-full w-full ${cutout ? 'object-contain p-2' : 'object-cover'} ${
+              garment.archived ? 'opacity-50 grayscale' : ''
+            }`}
           />
         )}
+        <CutoutBadge id={garment.id} />
       </div>
       <p className="mt-1.5 truncate text-sm font-medium">{garment.name}</p>
     </Link>

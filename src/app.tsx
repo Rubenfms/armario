@@ -4,6 +4,8 @@ import { HomePage } from './pages/HomePage';
 import { WardrobePage } from './pages/WardrobePage';
 import { NewGarmentPage } from './pages/NewGarmentPage';
 import { OutfitsPage } from './pages/OutfitsPage';
+import { NewOutfitPage } from './pages/NewOutfitPage';
+import { OutfitPage } from './pages/OutfitPage';
 import { GarmentPage } from './pages/GarmentPage';
 
 /**
@@ -20,6 +22,8 @@ export function App() {
           <Route path="/armario" element={<WardrobePage />} />
           <Route path="/armario/nueva" element={<NewGarmentPage />} />
           <Route path="/outfits" element={<OutfitsPage />} />
+          <Route path="/outfits/nuevo" element={<NewOutfitPage />} />
+          <Route path="/outfit/:id" element={<OutfitPage />} />
           <Route path="/prenda/:id" element={<GarmentPage />} />
         </Route>
       </Routes>

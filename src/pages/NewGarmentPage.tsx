@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { addGarment, type GarmentFields } from '../db/garments';
 import { takePendingPhoto } from '../lib/pendingPhoto';
+import { enqueueCutout } from '../lib/cutout';
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { EMPTY_FIELDS, GarmentForm } from '../ui/GarmentForm';
 import { PhotoPicker } from '../ui/PhotoPicker';
@@ -20,7 +21,8 @@ export function NewGarmentPage() {
     setSaving(true);
     setError(null);
     try {
-      await addGarment(fields, photo);
+      const id = await addGarment(fields, photo);
+      enqueueCutout(id);
       navigate('/armario', { replace: true });
     } catch (err) {
       console.error(err);

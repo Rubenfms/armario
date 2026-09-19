@@ -27,3 +27,24 @@ db.version(1).stores({
 db.version(2).stores({
   garments: 'id, category, *tags',
 });
+
+// v3: `useCutout` pasa a ser una preferencia («usar el recorte cuando lo
+// haya»). En la Fase 1 se guardaba a false como relleno, no por elección del
+// usuario, así que se pone a true en todo lo que aún no tiene recorte.
+db.version(3)
+  .stores({})
+  .upgrade((tx) =>
+    tx
+      .table('garments')
+      .toCollection()
+      .modify((g: { imageCutout: Blob | null; useCutout: boolean }) => {
+        if (g.imageCutout === null) g.useCutout = true;
+      }),
+  );
+
+// v4: outfits indexados por prenda, para rehacer sus collages cuando cambia la
+// imagen de una prenda (llega el recorte, se alterna recorte/original) y para
+// limpiarlos si se borra.
+db.version(4).stores({
+  outfits: 'id, *tags, *garmentIds',
+});

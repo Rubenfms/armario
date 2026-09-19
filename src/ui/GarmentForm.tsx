@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { CATEGORIES, SEASONS, type Category, type Season } from '../db/types';
 import { CATEGORY_LABELS, SEASON_LABELS } from '../db/labels';
 import type { GarmentFields } from '../db/garments';
+import { parseTags } from '../lib/tags';
 
 interface Props {
   initial: GarmentFields;
+  /** Hex del color detectado; sin él no se muestra el campo de color. */
+  colorHex?: string;
   submitLabel: string;
   disabled?: boolean;
   onSubmit: (fields: GarmentFields) => void;
@@ -15,14 +18,16 @@ export const EMPTY_FIELDS: GarmentFields = {
   category: 'superior',
   seasons: [],
   tags: [],
+  colorName: '',
 };
 
 /** Nombre, categoría, temporadas y etiquetas. Lo usan el alta y el detalle. */
-export function GarmentForm({ initial, submitLabel, disabled = false, onSubmit }: Props) {
+export function GarmentForm({ initial, colorHex = '', submitLabel, disabled = false, onSubmit }: Props) {
   const [name, setName] = useState(initial.name);
   const [category, setCategory] = useState<Category>(initial.category);
   const [seasons, setSeasons] = useState<Season[]>(initial.seasons);
   const [tagsText, setTagsText] = useState(initial.tags.join(', '));
+  const [colorName, setColorName] = useState(initial.colorName);
 
   function toggleSeason(season: Season) {
     setSeasons((current) =>
@@ -40,6 +45,7 @@ export function GarmentForm({ initial, submitLabel, disabled = false, onSubmit }
       // Se guardan en el orden canónico, no en el que se pulsaron.
       seasons: SEASONS.filter((s) => seasons.includes(s)),
       tags: parseTags(tagsText),
+      colorName: colorName.trim(),
     });
   }
 
@@ -96,6 +102,30 @@ export function GarmentForm({ initial, submitLabel, disabled = false, onSubmit }
         <p className="mt-1.5 text-xs text-muted">Sin ninguna marcada cuenta como todo el año.</p>
       </fieldset>
 
+      {colorHex && (
+        <div>
+          <label htmlFor="garment-color" className="label">
+            Color
+          </label>
+          <div className="flex items-center gap-2">
+            <span
+              className="h-12 w-12 shrink-0 rounded-xl border border-line"
+              style={{ backgroundColor: colorHex }}
+              aria-hidden="true"
+            />
+            <input
+              id="garment-color"
+              className="field"
+              value={colorName}
+              onChange={(e) => setColorName(e.target.value)}
+              placeholder="azul marino"
+              autoComplete="off"
+            />
+          </div>
+          <p className="mt-1.5 text-xs text-muted">Detectado automáticamente; corrígelo si no cuadra.</p>
+        </div>
+      )}
+
       <div>
         <label htmlFor="garment-tags" className="label">
           Etiquetas
@@ -116,13 +146,4 @@ export function GarmentForm({ initial, submitLabel, disabled = false, onSubmit }
       </button>
     </form>
   );
-}
-
-function parseTags(text: string): string[] {
-  const seen = new Set<string>();
-  for (const raw of text.split(',')) {
-    const tag = raw.trim().toLowerCase();
-    if (tag) seen.add(tag);
-  }
-  return [...seen];
 }

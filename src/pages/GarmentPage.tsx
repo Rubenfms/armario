@@ -2,17 +2,27 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { deleteGarment, setGarmentArchived, updateGarment, type GarmentFields } from '../db/garments';
+import {
+  deleteGarment,
+  displayImage,
+  setGarmentArchived,
+  setUseCutout,
+  updateGarment,
+  type GarmentFields,
+} from '../db/garments';
+import { enqueueCutout } from '../lib/cutout';
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { GarmentForm } from '../ui/GarmentForm';
 import { EmptyState } from '../ui/EmptyState';
+import { describeCutoutStatus, Spinner, useCutoutStatus } from '../ui/CutoutStatus';
 
 export function GarmentPage() {
   const { id = '' } = useParams<{ id: string }>();
   // get() resuelve undefined si no existe, igual que el estado de carga del
   // hook; se convierte a null para distinguir ambos casos.
   const garment = useLiveQuery(async () => (await db.garments.get(id)) ?? null, [id]);
-  const src = useObjectUrl(garment?.imageOriginal);
+  const src = useObjectUrl(garment ? displayImage(garment) : null);
+  const status = useCutoutStatus(id);
   const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
 
@@ -39,18 +49,51 @@ export function GarmentPage() {
     navigate('/armario', { replace: true });
   }
 
+  const hasCutout = garment.imageCutout !== null;
+  const showingCutout = garment.useCutout && hasCutout;
+  const busy = status !== undefined && status.state !== 'error';
+
   return (
     <>
       <BackLink />
       <h1 className="mt-2 mb-4 text-2xl font-semibold">{garment.name}</h1>
 
-      <div className="mb-5 overflow-hidden rounded-xl bg-surface">
+      <div
+        className={`mb-3 overflow-hidden rounded-xl ${
+          showingCutout ? 'bg-[repeating-conic-gradient(var(--line)_0_25%,transparent_0_50%)] bg-size-[20px_20px]' : 'bg-surface'
+        }`}
+      >
         {src && (
           <img
             src={src}
             alt={garment.name}
             className={`mx-auto max-h-96 object-contain ${garment.archived ? 'opacity-60' : ''}`}
           />
+        )}
+      </div>
+
+      {/* Recorte: estado, interruptor recorte/original y reprocesar. */}
+      <div className="mb-5 flex flex-col gap-2">
+        {status && (
+          <p className="flex items-center gap-2 text-sm text-muted">
+            {busy && <Spinner />}
+            {status.state === 'error' ? `Sin recortar: ${status.message}` : describeCutoutStatus(status)}
+          </p>
+        )}
+        {hasCutout && (
+          <div className="flex rounded-xl border border-line p-1" role="radiogroup" aria-label="Imagen a usar">
+            <SegmentButton active={garment.useCutout} onClick={() => setUseCutout(id, true)}>
+              Usar recorte
+            </SegmentButton>
+            <SegmentButton active={!garment.useCutout} onClick={() => setUseCutout(id, false)}>
+              Usar original
+            </SegmentButton>
+          </div>
+        )}
+        {!busy && (
+          <button type="button" className="btn-secondary" onClick={() => enqueueCutout(id)}>
+            {hasCutout ? 'Volver a recortar' : 'Recortar fondo'}
+          </button>
         )}
       </div>
 
@@ -61,13 +104,18 @@ export function GarmentPage() {
       )}
 
       <GarmentForm
-        key={garment.id}
+        // El color llega en segundo plano: la clave remonta el formulario para
+        // que aparezca el campo sin pisar lo que el usuario esté escribiendo
+        // en otros casos.
+        key={`${garment.id}:${garment.colorHex}`}
         initial={{
           name: garment.name,
           category: garment.category,
           seasons: garment.seasons,
           tags: garment.tags,
+          colorName: garment.colorName,
         }}
+        colorHex={garment.colorHex}
         submitLabel={saved ? 'Guardado ✓' : 'Guardar cambios'}
         onSubmit={handleSave}
       />
@@ -85,6 +133,28 @@ export function GarmentPage() {
         </button>
       </div>
     </>
+  );
+}
+
+function SegmentButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      className={`flex-1 rounded-lg py-2 text-sm font-medium ${active ? 'bg-accent text-white' : 'text-muted'}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 

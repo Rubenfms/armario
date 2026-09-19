@@ -30,6 +30,7 @@ export interface Outfit {
   name: string;
   garmentIds: string[];
   tags: string[];
+  collage: Blob | null; // render cacheado; null si no hay prendas con imagen
   createdAt: number;
 }
 

@@ -1,6 +1,11 @@
 import { db } from './db';
 import type { Category, Garment, Season } from './types';
 import { makeThumbnail } from '../lib/images';
+import type { DominantColor } from '../lib/color';
+import { displayImage } from './garmentImage';
+import { refreshCollagesFor, removeGarmentFromOutfits } from './outfits';
+
+export { displayImage };
 
 /** Los campos que edita el usuario en el formulario. */
 export interface GarmentFields {
@@ -8,6 +13,7 @@ export interface GarmentFields {
   category: Category;
   seasons: Season[];
   tags: string[];
+  colorName: string;
 }
 
 export async function addGarment(fields: GarmentFields, photo: Blob): Promise<string> {
@@ -19,13 +25,14 @@ export async function addGarment(fields: GarmentFields, photo: Blob): Promise<st
   const garment: Garment = {
     id: crypto.randomUUID(),
     ...fields,
-    // El color se extrae en la Fase 2; hasta entonces queda vacío.
+    // El color lo pone el worker de recorte cuando termina.
     colorHex: '',
-    colorName: '',
     imageOriginal,
     imageCutout: null,
     thumbnail,
-    useCutout: false,
+    // Preferencia: en cuanto haya recorte, usarlo. El usuario la cambia desde
+    // el detalle si el recorte sale mal.
+    useCutout: true,
     archived: false,
     createdAt: Date.now(),
   };
@@ -35,14 +42,42 @@ export async function addGarment(fields: GarmentFields, photo: Blob): Promise<st
 
 export function updateGarment(id: string, fields: GarmentFields): Promise<number> {
   // Se desestructura porque UpdateSpec exige un objeto literal, no una interfaz.
-  const { name, category, seasons, tags } = fields;
-  return db.garments.update(id, { name, category, seasons, tags });
+  const { name, category, seasons, tags, colorName } = fields;
+  return db.garments.update(id, { name, category, seasons, tags, colorName });
 }
 
 export function setGarmentArchived(id: string, archived: boolean): Promise<number> {
   return db.garments.update(id, { archived });
 }
 
-export function deleteGarment(id: string): Promise<void> {
-  return db.garments.delete(id);
+export async function deleteGarment(id: string): Promise<void> {
+  await db.garments.delete(id);
+  await removeGarmentFromOutfits(id);
+}
+
+/** Guarda el resultado del worker y rehace la miniatura según la preferencia. */
+export async function applyCutout(id: string, cutout: Blob, color: DominantColor | null): Promise<void> {
+  const garment = await db.garments.get(id);
+  if (!garment) return;
+  const thumbnail = await thumbnailFor({ ...garment, imageCutout: cutout });
+  await db.garments.update(id, {
+    imageCutout: cutout,
+    thumbnail,
+    ...(color ? { colorHex: color.hex, colorName: color.name } : {}),
+  });
+  await refreshCollagesFor(id);
+}
+
+/** Cambia entre recorte y original; la miniatura sigue a la elección. */
+export async function setUseCutout(id: string, useCutout: boolean): Promise<void> {
+  const garment = await db.garments.get(id);
+  if (!garment) return;
+  const thumbnail = await thumbnailFor({ ...garment, useCutout });
+  await db.garments.update(id, { useCutout, thumbnail });
+  await refreshCollagesFor(id);
+}
+
+function thumbnailFor(garment: Garment): Promise<Blob> {
+  const transparent = garment.useCutout && garment.imageCutout !== null;
+  return makeThumbnail(displayImage(garment), 300, { transparent });
 }
