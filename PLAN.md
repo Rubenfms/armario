@@ -133,6 +133,29 @@ Nada de composición dinámica ni arrastrar y soltar. Posiciones fijas.
 - Estados vacíos, de carga y de error en todas las pantallas.
 - Aviso al ocupar mucho almacenamiento (`navigator.storage.estimate`) y solicitud de almacenamiento persistente.
 
+### Fase 6 — Estilo y puntuación
+Motor de reglas **en el dispositivo** (sin red, sin claves): objetivo y reproducible.
+- `src/lib/style.ts`: puntuación 0–100 de un conjunto de prendas con desglose explicable:
+  - Armonía de color (0–35): neutros vs cromáticos en LCh; un acento sobre neutros es lo mejor; dos cromáticos según relación de tono (monocromo, análogos, complementarios, triádicos, choque); penaliza más de tres cromáticos.
+  - Contraste de luminosidad entre superior e inferior (0–20).
+  - Equilibrio de saturación: cuántas prendas muy saturadas (0–15).
+  - Temporada: todas las prendas encajan con la actual (0–15).
+  - Coherencia de estilo por etiquetas: formal vs casual (0–15).
+- La sugerencia generada deja de ser al azar: se generan varias candidatas válidas y se elige entre las mejor puntuadas (con algo de azar para variar).
+- Score visible en la tarjeta de Hoy, en las tarjetas y el editor de outfits (en vivo mientras eliges), con "por qué" desplegable.
+- Tests de Vitest de cada regla y del ranking.
+
+**Hecho cuando:** dos outfits que a ojo funcionan y chirrían obtienen notas claramente distintas, y el desglose explica por qué.
+
+### Fase 7 — Animaciones
+Con `motion` (`motion/react`), respetando `prefers-reduced-motion`.
+- Transición entre pantallas; entrada escalonada de rejillas; hoja de añadir prenda y panel de filtros animados.
+- La tarjeta de Hoy se voltea al pedir otra sugerencia y se puede **deslizar** para pedirla.
+- El collage de la sugerencia y del editor se monta **pieza a pieza** (prendas posicionadas en DOM con las mismas cajas que el canvas).
+- El score sube con un contador y anillo.
+- Deslizar una tarjeta del armario para archivar, con deshacer.
+- Confeti al registrar un outfit con nota alta.
+
 ---
 
 ## 4. Fuera de alcance
@@ -140,13 +163,12 @@ Nada de composición dinámica ni arrastrar y soltar. Posiciones fijas.
 No implementar sin que yo lo pida explícitamente:
 
 - Cuentas, login, sincronización o compartir con terceros.
-- Recomendación con IA, teoría del color o análisis de compatibilidad de estilos.
+- Recomendación con un LLM externo (API con clave, red, coste). La teoría del color y la compatibilidad van por reglas locales (Fase 6).
 - API del tiempo (candidata a una Fase 6, no antes).
 - Estadísticas de uso, prendas sin usar, coste por puesta.
 - Planificador de maleta, lista de la compra, precios, marcas, enlaces a tiendas.
 - Escaneo de etiquetas o códigos de barras.
-- Modo oscuro dedicado en las primeras fases (basta con respetar `prefers-color-scheme`).
-- Animaciones o transiciones más allá de lo que da Tailwind por defecto.
+- Modo oscuro dedicado (basta con respetar `prefers-color-scheme`).
 
 ---
 

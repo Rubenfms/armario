@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import { CATEGORIES, type Category, type Garment } from '../db/types';
 import { CATEGORY_LABELS } from '../db/labels';
 import type { OutfitFields } from '../db/outfits';
-import { renderCollage } from '../lib/collage';
+import { seasonForDate } from '../lib/suggest';
+import { scoreOutfit } from '../lib/style';
 import { parseTags } from '../lib/tags';
 import { useObjectUrl } from '../lib/useObjectUrl';
-import { CollageView } from './CollageView';
+import { LiveCollage } from './LiveCollage';
+import { ScoreCard } from './Score';
 
 interface Props {
   initial: OutfitFields;
@@ -18,12 +21,19 @@ interface Props {
 
 export const EMPTY_OUTFIT: OutfitFields = { name: '', garmentIds: [], tags: [] };
 
-/** Selector por categorías con vista previa del collage, nombre y etiquetas. */
+/**
+ * Selector por categorías con vista previa del collage (que se monta pieza a
+ * pieza) y la puntuación en vivo de lo que hay elegido, más nombre y etiquetas.
+ */
 export function OutfitEditor({ initial, garments, submitLabel, disabled = false, onSubmit }: Props) {
   const [name, setName] = useState(initial.name);
   const [tagsText, setTagsText] = useState(initial.tags.join(', '));
   const [selected, setSelected] = useState<string[]>(initial.garmentIds);
-  const preview = useCollagePreview(garments, selected);
+  const chosen = useMemo(
+    () => selected.map((id) => garments.find((g) => g.id === id)).filter((g): g is Garment => g !== undefined),
+    [selected, garments],
+  );
+  const score = useMemo(() => (chosen.length > 0 ? scoreOutfit(chosen, seasonForDate(new Date())) : null), [chosen]);
 
   function toggle(garment: Garment) {
     setSelected((current) => {
@@ -46,7 +56,8 @@ export function OutfitEditor({ initial, garments, submitLabel, disabled = false,
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      <CollageView src={preview} alt="Vista previa del outfit" />
+      <LiveCollage garments={chosen} />
+      {score && <ScoreCard score={score} defaultOpen />}
 
       {CATEGORIES.map((category) => (
         <CategoryRow
@@ -118,10 +129,16 @@ function CategoryRow({
         // Margen negativo + padding: la fila llega al borde de la pantalla al
         // hacer scroll, pero empieza alineada con el resto del formulario.
         <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-          {garments.map((g) => (
-            <li key={g.id} className="shrink-0">
+          {garments.map((g, i) => (
+            <motion.li
+              key={g.id}
+              className="shrink-0"
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: Math.min(i, 8) * 0.04 }}
+            >
               <GarmentChoice garment={g} active={selected.includes(g.id)} onClick={() => onToggle(g)} />
-            </li>
+            </motion.li>
           ))}
         </ul>
       )}
@@ -133,47 +150,19 @@ function GarmentChoice({ garment, active, onClick }: { garment: Garment; active:
   const src = useObjectUrl(garment.thumbnail);
   const cutout = garment.useCutout && garment.imageCutout !== null;
   return (
-    <button
+    <motion.button
       type="button"
       aria-pressed={active}
       aria-label={garment.name}
       title={garment.name}
       onClick={onClick}
+      whileTap={{ scale: 0.92 }}
+      animate={{ scale: active ? 1.04 : 1 }}
       className={`block h-20 w-20 overflow-hidden rounded-xl border-2 bg-surface ${
         active ? 'border-accent' : 'border-transparent'
       } ${garment.archived ? 'opacity-50' : ''}`}
     >
-      {src && <img src={src} alt="" className={`h-full w-full ${cutout ? 'object-contain p-1' : 'object-cover'}`} />}
-    </button>
+      {src && <img src={src} alt="" className={`h-full w-full ${cutout ? 'object-contain p-1' : 'object-cover'}`} draggable={false} />}
+    </motion.button>
   );
-}
-
-/**
- * Vista previa: se vuelve a pintar con cada cambio de selección, con un
- * pequeño retardo para no encadenar renders si se pulsa rápido. El contador
- * descarta resultados de renders ya superados.
- */
-function useCollagePreview(garments: Garment[], selected: string[]): string | null {
-  const [blob, setBlob] = useState<Blob | null>(null);
-  const key = selected.join(',');
-
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      const chosen = selected.map((id) => garments.find((g) => g.id === id)).filter((g): g is Garment => !!g);
-      void renderCollage(chosen)
-        .then((result) => {
-          if (!cancelled) setBlob(result);
-        })
-        .catch((err: unknown) => console.error('No se pudo pintar la vista previa', err));
-    }, 150);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-    // `key` resume `selected`; `garments` cambia de identidad con cada cambio
-    // en la tabla, que es justo cuando puede haber llegado un recorte nuevo.
-  }, [key, garments]);
-
-  return useObjectUrl(blob);
 }

@@ -1,17 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { db } from '../db/db';
 import type { Garment, Outfit, WearLog } from '../db/types';
 import { addWearLog, wearLogsSince } from '../db/wearLogs';
-import { renderCollage } from '../lib/collage';
+import { confetti } from '../lib/confetti';
 import { loadPick, savePick } from '../lib/dailyPick';
-import { REST_DAYS, suggest, toDateKey, usableOutfits, type Suggestion } from '../lib/suggest';
-import { useObjectUrl } from '../lib/useObjectUrl';
-import { CollageView } from '../ui/CollageView';
+import { REST_DAYS, seasonForDate, suggest, toDateKey, usableOutfits, type Suggestion } from '../lib/suggest';
+import { scoreOutfit } from '../lib/style';
 import { EmptyState } from '../ui/EmptyState';
+import { LiveCollage } from '../ui/LiveCollage';
 import { Loading } from '../ui/Loading';
+import { ScoreCard } from '../ui/Score';
 import { StorageWarning } from '../ui/StorageWarning';
+
+/** A partir de esta nota, registrar el outfit tira confeti. */
+const CONFETTI_FROM = 85;
+/** Desplazamiento horizontal (px) a partir del cual soltar la tarjeta pide otra. */
+const SWIPE_PX = 90;
 
 export function HomePage() {
   const today = new Date();
@@ -31,6 +38,8 @@ export function HomePage() {
   // pedir otra sugerencia igualmente (cambio de planes a media mañana).
   const [ignoreWorn, setIgnoreWorn] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Sentido del volteo: a la izquierda si se deslizó a la izquierda, etc.
+  const [flipDir, setFlipDir] = useState(1);
 
   const loaded = garments !== undefined && outfits !== undefined && recentLogs !== undefined;
 
@@ -44,6 +53,18 @@ export function HomePage() {
     setSuggestion(next);
     setReady(true);
   }, [loaded, ready, garments, outfits, recentLogs, todayKey]);
+
+  // Las prendas cambian por debajo (llega un recorte, se detecta el color):
+  // la tarjeta debe verlo sin recargar, y la nota, recalcularse.
+  useEffect(() => {
+    if (!ready || !suggestion || !garments) return;
+    const byId = new Map(garments.map((g) => [g.id, g]));
+    const fresh = suggestion.garments.map((g) => byId.get(g.id)).filter((g): g is Garment => g !== undefined);
+    if (fresh.length !== suggestion.garments.length) return;
+    if (fresh.every((g, i) => g === suggestion.garments[i])) return;
+    setSuggestion({ ...suggestion, garments: fresh, score: scoreOutfit(fresh, seasonForDate(new Date())) });
+    // Solo interesa reaccionar a la tabla; `suggestion` cambia como efecto.
+  }, [garments]);
 
   if (!loaded || !ready) return <Loading />;
 
@@ -60,7 +81,8 @@ export function HomePage() {
     );
   }
 
-  function another(avoid: string[] | undefined) {
+  function another(avoid: string[] | undefined, dir = 1) {
+    setFlipDir(dir);
     const next = suggest({
       garments: garments ?? [],
       outfits: outfits ?? [],
@@ -105,6 +127,7 @@ export function HomePage() {
         outfitId: suggestion.kind === 'guardado' ? suggestion.outfit.id : null,
         source: 'sugerido',
       });
+      if (suggestion.score.total >= CONFETTI_FROM) confetti();
       setIgnoreWorn(false);
     } finally {
       setSaving(false);
@@ -116,7 +139,11 @@ export function HomePage() {
       <Title todayKey={todayKey} />
       {suggestion ? (
         <>
-          <SuggestionCard suggestion={suggestion} />
+          <SuggestionCard
+            suggestion={suggestion}
+            flipDir={flipDir}
+            onSwipe={(dir) => another(suggestion.garments.map((g) => g.id), dir)}
+          />
           <div className="mt-4 flex flex-col gap-2">
             <button type="button" className="btn-primary" disabled={saving} onClick={woreIt}>
               Me lo puse hoy
@@ -126,6 +153,7 @@ export function HomePage() {
             </button>
             {suggestion.kind === 'nuevo' && <SaveAsOutfitButton garmentIds={suggestion.garments.map((g) => g.id)} />}
           </div>
+          <p className="mt-3 text-center text-xs text-muted">Desliza la tarjeta para pedir otra.</p>
         </>
       ) : (
         <EmptyState
@@ -165,31 +193,68 @@ function Title({ todayKey }: { todayKey: string }) {
   );
 }
 
-function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
-  const src = useSuggestionCollage(suggestion);
+function suggestionKey(s: Suggestion): string {
+  return (s.kind === 'guardado' ? s.outfit.id + ':' : 'nuevo:') + s.garments.map((g) => g.id).join(',');
+}
+
+/**
+ * Tarjeta de la sugerencia. Al cambiar de sugerencia se voltea (la vieja
+ * gira hasta desaparecer y la nueva entra girando desde el otro lado); se
+ * puede arrastrar a los lados y, si se suelta lejos, pide otra.
+ */
+function SuggestionCard({ suggestion, flipDir, onSwipe }: { suggestion: Suggestion; flipDir: number; onSwipe: (dir: number) => void }) {
+  const reduced = useReducedMotion();
   const isSaved = suggestion.kind === 'guardado';
   return (
-    <article className="rounded-2xl border border-line bg-surface p-3">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="truncate text-lg font-semibold">{isSaved ? suggestion.outfit.name : 'Combinación nueva'}</h2>
-        <span
-          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-            isSaved ? 'bg-accent text-white' : 'border border-accent text-accent'
-          }`}
+    <div style={{ perspective: 1200 }}>
+      <AnimatePresence mode="wait" initial={false} custom={flipDir}>
+        <motion.article
+          key={suggestionKey(suggestion)}
+          custom={flipDir}
+          variants={{
+            enter: (dir: number) => ({ rotateY: reduced ? 0 : -70 * dir, opacity: 0, x: reduced ? 0 : 40 * dir }),
+            center: { rotateY: 0, opacity: 1, x: 0 },
+            exit: (dir: number) => ({ rotateY: reduced ? 0 : 70 * dir, opacity: 0, x: reduced ? 0 : -40 * dir }),
+          }}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.28, ease: 'easeInOut' }}
+          drag={reduced ? false : 'x'}
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.6}
+          onDragEnd={(_e, info) => {
+            if (Math.abs(info.offset.x) > SWIPE_PX) onSwipe(info.offset.x < 0 ? 1 : -1);
+          }}
+          whileDrag={{ scale: 0.98, cursor: 'grabbing' }}
+          className="rounded-2xl border border-line bg-surface p-3"
+          style={{ transformStyle: 'preserve-3d', touchAction: 'pan-y' }}
         >
-          {isSaved ? 'Guardado' : 'Nuevo'}
-        </span>
-      </div>
-      <CollageView src={src} alt="Outfit sugerido" className="bg-bg" />
-      <GarmentList garments={suggestion.garments} />
-      {suggestion.kind === 'nuevo' && suggestion.relaxed !== 'ninguna' && (
-        <p className="mt-3 rounded-xl bg-bg px-3 py-2 text-xs text-muted">
-          {suggestion.relaxed === 'repeticion'
-            ? 'No quedaban prendas sin usar esta semana: se repite alguna.'
-            : 'No hay prendas suficientes de esta temporada: se han incluido de otras.'}
-        </p>
-      )}
-    </article>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="truncate text-lg font-semibold">{isSaved ? suggestion.outfit.name : 'Combinación nueva'}</h2>
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                isSaved ? 'bg-accent text-white' : 'border border-accent text-accent'
+              }`}
+            >
+              {isSaved ? 'Guardado' : 'Nuevo'}
+            </span>
+          </div>
+          <LiveCollage garments={suggestion.garments} className="bg-bg" />
+          <GarmentList garments={suggestion.garments} />
+          <div className="mt-3">
+            <ScoreCard score={suggestion.score} />
+          </div>
+          {suggestion.kind === 'nuevo' && suggestion.relaxed !== 'ninguna' && (
+            <p className="mt-3 rounded-xl bg-bg px-3 py-2 text-xs text-muted">
+              {suggestion.relaxed === 'repeticion'
+                ? 'No quedaban prendas sin usar esta semana: se repite alguna.'
+                : 'No hay prendas suficientes de esta temporada: se han incluido de otras.'}
+            </p>
+          )}
+        </motion.article>
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -197,18 +262,23 @@ function WornCard({ log, garments, outfits }: { log: WearLog; garments: Garment[
   const byId = new Map(garments.map((g) => [g.id, g]));
   const worn = log.garmentIds.map((id) => byId.get(id)).filter((g): g is Garment => g !== undefined);
   const outfit = log.outfitId ? outfits.find((o) => o.id === log.outfitId) : undefined;
-  const src = useSuggestionCollage(
-    outfit ? { kind: 'guardado', outfit, garments: worn } : { kind: 'nuevo', garments: worn, relaxed: 'ninguna' },
-  );
+  const score = scoreOutfit(worn, seasonForDate(new Date()));
   return (
-    <article className="rounded-2xl border border-line bg-surface p-3">
+    <motion.article
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="rounded-2xl border border-line bg-surface p-3"
+    >
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="truncate text-lg font-semibold">{outfit?.name ?? 'Lo de hoy'}</h2>
         <span className="shrink-0 rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-white">Puesto hoy ✓</span>
       </div>
-      <CollageView src={src} alt="Lo que llevas hoy" className="bg-bg" />
+      <LiveCollage garments={worn} className="bg-bg" />
       <GarmentList garments={worn} />
-    </article>
+      <div className="mt-3">
+        <ScoreCard score={score} />
+      </div>
+    </motion.article>
   );
 }
 
@@ -237,27 +307,6 @@ function SaveAsOutfitButton({ garmentIds }: { garmentIds: string[] }) {
 
 // --------------------------------------------------------------- helpers
 
-/** Collage cacheado del outfit si lo hay; si no, se pinta al vuelo. */
-function useSuggestionCollage(suggestion: Suggestion): string | null {
-  const cached = suggestion.kind === 'guardado' ? suggestion.outfit.collage : null;
-  const [rendered, setRendered] = useState<Blob | null>(null);
-  const key = suggestion.garments.map((g) => g.id).join(',');
-
-  useEffect(() => {
-    if (cached) return;
-    let cancelled = false;
-    void renderCollage(suggestion.garments).then((blob) => {
-      if (!cancelled) setRendered(blob);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // `key` resume las prendas; no hace falta repintar por identidad.
-  }, [cached, key]);
-
-  return useObjectUrl(cached ?? rendered);
-}
-
 /** Rehidrata la sugerencia guardada si todo lo que referencia sigue vivo. */
 function restore(garments: Garment[], outfits: Outfit[], todayKey: string): Suggestion | null {
   const pick = loadPick(todayKey);
@@ -266,11 +315,12 @@ function restore(garments: Garment[], outfits: Outfit[], todayKey: string): Sugg
   const picked = pick.garmentIds.map((id) => byId.get(id));
   if (picked.some((g) => g === undefined || g.archived)) return null;
   const chosen = picked.filter((g): g is Garment => g !== undefined);
+  const score = scoreOutfit(chosen, seasonForDate(new Date()));
 
   if (pick.kind === 'guardado') {
     const outfit = outfits.find((o) => o.id === pick.outfitId);
     if (!outfit || !usableOutfits([outfit], garments).length) return null;
-    return { kind: 'guardado', outfit, garments: chosen };
+    return { kind: 'guardado', outfit, garments: chosen, score };
   }
-  return { kind: 'nuevo', garments: chosen, relaxed: pick.relaxed };
+  return { kind: 'nuevo', garments: chosen, relaxed: pick.relaxed, score };
 }

@@ -2,7 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import type { Outfit } from '../db/types';
+import { AnimatePresence } from 'motion/react';
+import type { Garment, Outfit } from '../db/types';
+import { seasonForDate } from '../lib/suggest';
+import { scoreOutfit } from '../lib/style';
+import { ScoreChip } from '../ui/Score';
+import { StaggerItem } from '../ui/Stagger';
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { CollageView } from '../ui/CollageView';
 import { TagFilter } from '../ui/TagFilter';
@@ -12,11 +17,14 @@ export function OutfitsPage() {
   const outfits = useLiveQuery(() =>
     db.outfits.toArray((all) => all.sort((a, b) => b.createdAt - a.createdAt)),
   );
-  const garmentCount = useLiveQuery(() => db.garments.filter((g) => !g.archived).count());
+  const garments = useLiveQuery(() => db.garments.toArray());
   const [tag, setTag] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  if (!outfits || garmentCount === undefined) return <Loading />;
+  if (!outfits || !garments) return <Loading />;
+  const garmentCount = garments.filter((g) => !g.archived).length;
+  const byId = new Map(garments.map((g) => [g.id, g]));
+  const season = seasonForDate(new Date());
 
   const tags = [...new Set(outfits.flatMap((o) => o.tags))].sort((a, b) => a.localeCompare(b, 'es'));
   const visible = tag === null ? outfits : outfits.filter((o) => o.tags.includes(tag));
@@ -41,11 +49,16 @@ export function OutfitsPage() {
             <p className="text-sm text-muted">Ningún outfit con la etiqueta «{tag}».</p>
           ) : (
             <ul className="grid grid-cols-2 gap-3">
-              {visible.map((o) => (
-                <li key={o.id}>
-                  <OutfitCard outfit={o} />
-                </li>
-              ))}
+              <AnimatePresence initial={true}>
+                {visible.map((o, i) => (
+                  <StaggerItem key={o.id} index={i}>
+                    <OutfitCard
+                      outfit={o}
+                      score={scoreOutfit(o.garmentIds.map((id) => byId.get(id)).filter((g): g is Garment => g !== undefined), season).total}
+                    />
+                  </StaggerItem>
+                ))}
+              </AnimatePresence>
             </ul>
           )}
         </>
@@ -88,11 +101,16 @@ function EmptyOutfits({ hasGarments }: { hasGarments: boolean }) {
   );
 }
 
-function OutfitCard({ outfit }: { outfit: Outfit }) {
+function OutfitCard({ outfit, score }: { outfit: Outfit; score: number }) {
   const src = useObjectUrl(outfit.collage);
   return (
     <Link to={`/outfit/${outfit.id}`} className="block">
-      <CollageView src={src} alt="" />
+      <div className="relative">
+        <CollageView src={src} alt="" />
+        <span className="absolute top-1.5 right-1.5">
+          <ScoreChip total={score} />
+        </span>
+      </div>
       <p className="mt-1.5 truncate text-sm font-medium">{outfit.name}</p>
       {outfit.tags.length > 0 && <p className="truncate text-xs text-muted">{outfit.tags.join(' · ')}</p>}
     </Link>

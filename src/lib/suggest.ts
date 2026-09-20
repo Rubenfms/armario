@@ -1,4 +1,5 @@
 import type { Category, Garment, Outfit, Season, WearLog } from '../db/types';
+import { scoreOutfit, type StyleScore } from './style';
 
 /**
  * Motor de sugerencia diaria. Sin DOM ni base de datos: recibe las tablas ya
@@ -10,8 +11,8 @@ import type { Category, Garment, Outfit, Season, WearLog } from '../db/types';
 export type Relaxed = 'ninguna' | 'repeticion' | 'temporada';
 
 export type Suggestion =
-  | { kind: 'guardado'; outfit: Outfit; garments: Garment[] }
-  | { kind: 'nuevo'; garments: Garment[]; relaxed: Relaxed };
+  | { kind: 'guardado'; outfit: Outfit; garments: Garment[]; score: StyleScore }
+  | { kind: 'nuevo'; garments: Garment[]; relaxed: Relaxed; score: StyleScore };
 
 export interface SuggestInput {
   garments: Garment[];
@@ -25,6 +26,11 @@ export interface SuggestInput {
 
 /** Días que una prenda queda «descansando» tras ponérsela. */
 export const REST_DAYS = 7;
+
+/** Combinaciones que se generan antes de quedarse con las mejores. */
+const CANDIDATES = 24;
+/** Entre cuántas de las mejores se elige al azar, para no dar siempre la misma. */
+const TOP = 3;
 
 /** Categorías que toda combinación generada debe tener. */
 const REQUIRED: readonly Category[] = ['superior', 'inferior', 'calzado'];
@@ -129,6 +135,30 @@ export function generateOutfit(
   return null;
 }
 
+/**
+ * Genera varias combinaciones válidas, las puntúa con el motor de estilo y
+ * devuelve una de las mejores. Todas comparten el nivel de relajación, que
+ * depende del armario y no del azar.
+ */
+export function generateBest(
+  garments: Garment[],
+  season: Season,
+  recentlyWorn: Set<string>,
+  random: () => number = Math.random,
+  avoid: Set<string> = new Set(),
+): { garments: Garment[]; relaxed: Relaxed; score: StyleScore } | null {
+  const unique = new Map<string, { garments: Garment[]; relaxed: Relaxed }>();
+  for (let i = 0; i < CANDIDATES; i += 1) {
+    const candidate = generateOutfit(garments, season, recentlyWorn, random, avoid);
+    if (!candidate) return null;
+    unique.set(keyOf(candidate.garments.map((g) => g.id)), candidate);
+  }
+  const scored = [...unique.values()]
+    .map((c) => ({ ...c, score: scoreOutfit(c.garments, season) }))
+    .sort((a, b) => b.score.total - a.score.total);
+  return pick(scored.slice(0, TOP), random) ?? null;
+}
+
 /** Outfits guardados cuyas prendas siguen todas existiendo y sin archivar. */
 export function usableOutfits(outfits: Outfit[], garments: Garment[]): Outfit[] {
   const byId = new Map(garments.map((g) => [g.id, g]));
@@ -156,10 +186,11 @@ export function suggest(input: SuggestInput): Suggestion | null {
   const pickSaved = (): Suggestion | null => {
     const outfit = pick(freshSaved.length > 0 ? freshSaved : saved, random);
     if (!outfit) return null;
-    return { kind: 'guardado', outfit, garments: outfit.garmentIds.map((id) => byId.get(id)).filter(isGarment) };
+    const garments = outfit.garmentIds.map((id) => byId.get(id)).filter(isGarment);
+    return { kind: 'guardado', outfit, garments, score: scoreOutfit(garments, season) };
   };
   const pickNew = (): Suggestion | null => {
-    const generated = generateOutfit(input.garments, season, recentlyWorn, random, avoid);
+    const generated = generateBest(input.garments, season, recentlyWorn, random, avoid);
     return generated ? { kind: 'nuevo', ...generated } : null;
   };
 

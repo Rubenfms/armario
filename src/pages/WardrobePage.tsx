@@ -1,5 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { setGarmentArchived } from '../db/garments';
+import { StaggerItem } from '../ui/Stagger';
+import { Toast } from '../ui/Toast';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { CATEGORIES, type Garment } from '../db/types';
@@ -19,7 +23,24 @@ export function WardrobePage() {
   const [showArchived, setShowArchived] = useState(false);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; undo: () => void } | null>(null);
+  const toastTimer = useRef<number | null>(null);
   const navigate = useNavigate();
+
+  function showToast(message: string, undo: () => void) {
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    setToast({ message, undo });
+    toastTimer.current = window.setTimeout(() => setToast(null), 4000);
+  }
+
+  async function swipeArchive(garment: Garment) {
+    const next = !garment.archived;
+    await setGarmentArchived(garment.id, next);
+    showToast(next ? `«${garment.name}» archivada` : `«${garment.name}» recuperada`, () => {
+      void setGarmentArchived(garment.id, !next);
+      setToast(null);
+    });
+  }
 
   function handlePick(photo: File) {
     setPendingPhoto(photo);
@@ -58,7 +79,7 @@ export function WardrobePage() {
           {CATEGORIES.map((category) => {
             const items = active.filter((g) => g.category === category);
             if (items.length === 0) return null;
-            return <CategorySection key={category} title={CATEGORY_LABELS[category]} items={items} />;
+            return <CategorySection key={category} title={CATEGORY_LABELS[category]} items={items} onSwipe={swipeArchive} />;
           })}
 
           {archived.length > 0 && (
@@ -72,7 +93,7 @@ export function WardrobePage() {
               </button>
               {showArchived && (
                 <div className="mt-3">
-                  <GarmentGrid items={archived} />
+                  <GarmentGrid items={archived} onSwipe={swipeArchive} />
                 </div>
               )}
             </section>
@@ -92,25 +113,37 @@ export function WardrobePage() {
         </svg>
       </button>
 
-      {pickerOpen && (
-        <div
-          className="fixed inset-0 z-20 flex items-end bg-black/40"
-          onClick={() => setPickerOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-label="Añadir prenda"
-            className="mx-auto w-full max-w-md rounded-t-2xl bg-bg p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {pickerOpen && (
+          <motion.div
+            key="sheet"
+            className="fixed inset-0 z-20 flex items-end bg-black/40"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPickerOpen(false)}
           >
-            <h2 className="mb-3 text-lg font-semibold">Nueva prenda</h2>
-            <PhotoPicker onPick={handlePick} />
-            <button type="button" className="btn-secondary mt-2 w-full" onClick={() => setPickerOpen(false)}>
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
+            <motion.div
+              role="dialog"
+              aria-label="Añadir prenda"
+              className="mx-auto w-full max-w-md rounded-t-2xl bg-bg p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 400, damping: 36 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="mb-3 text-lg font-semibold">Nueva prenda</h2>
+              <PhotoPicker onPick={handlePick} />
+              <button type="button" className="btn-secondary mt-2 w-full" onClick={() => setPickerOpen(false)}>
+                Cancelar
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <Toast message={toast?.message ?? null} actionLabel="Deshacer" onAction={toast?.undo} />
     </>
   );
 }
@@ -127,38 +160,84 @@ function EmptyWardrobe() {
   );
 }
 
-function CategorySection({ title, items }: { title: string; items: Garment[] }) {
+type SwipeHandler = (garment: Garment) => void;
+
+function CategorySection({ title, items, onSwipe }: { title: string; items: Garment[]; onSwipe: SwipeHandler }) {
   return (
     <section>
       <h2 className="mb-2 text-sm font-semibold tracking-wide text-muted uppercase">{title}</h2>
-      <GarmentGrid items={items} />
+      <GarmentGrid items={items} onSwipe={onSwipe} />
     </section>
   );
 }
 
-function GarmentGrid({ items }: { items: Garment[] }) {
+function GarmentGrid({ items, onSwipe }: { items: Garment[]; onSwipe: SwipeHandler }) {
   return (
     <ul className="grid grid-cols-2 gap-3">
-      {items.map((g) => (
-        <li key={g.id}>
-          <GarmentCard garment={g} />
-        </li>
-      ))}
+      <AnimatePresence initial={true}>
+        {items.map((g, i) => (
+          <StaggerItem key={g.id} index={i}>
+            <GarmentCard garment={g} onSwipe={onSwipe} />
+          </StaggerItem>
+        ))}
+      </AnimatePresence>
     </ul>
   );
 }
 
-function GarmentCard({ garment }: { garment: Garment }) {
+/** Desplazamiento (px) a partir del cual soltar la tarjeta la archiva. */
+const SWIPE_PX = 80;
+
+/**
+ * Tarjeta con gesto: deslizar a la izquierda archiva (o recupera si ya lo
+ * estaba). Debajo asoma la etiqueta de lo que va a pasar. Un arrastre corto
+ * no cuenta como toque: no abre el detalle.
+ */
+function GarmentCard({ garment, onSwipe }: { garment: Garment; onSwipe: SwipeHandler }) {
   const src = useObjectUrl(garment.thumbnail);
+  const reduced = useReducedMotion();
+  const dragged = useRef(false);
   // El recorte va entero y con aire; la foto original, a sangre.
   const cutout = garment.useCutout && garment.imageCutout !== null;
   return (
-    <Link to={`/prenda/${garment.id}`} className="block">
+    <div className="relative">
+      <div
+        className="absolute inset-0 flex items-center justify-end rounded-xl bg-accent pr-3 text-xs font-semibold text-white"
+        aria-hidden="true"
+      >
+        {garment.archived ? 'Recuperar' : 'Archivar'}
+      </div>
+      <motion.div
+        drag={reduced ? false : 'x'}
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={{ left: 0.7, right: 0.1 }}
+        dragDirectionLock
+        onDragStart={() => {
+          dragged.current = true;
+        }}
+        onDragEnd={(_e, info) => {
+          if (info.offset.x < -SWIPE_PX) onSwipe(garment);
+          window.setTimeout(() => {
+            dragged.current = false;
+          }, 50);
+        }}
+        className="relative bg-bg"
+        style={{ touchAction: 'pan-y' }}
+      >
+    <Link
+      to={`/prenda/${garment.id}`}
+      className="block"
+      draggable={false}
+      onClick={(e) => {
+        if (dragged.current) e.preventDefault();
+      }}
+    >
       <div className="relative aspect-square overflow-hidden rounded-xl bg-surface">
         {src && (
           <img
             src={src}
             alt=""
+            draggable={false}
             className={`h-full w-full ${cutout ? 'object-contain p-2' : 'object-cover'} ${
               garment.archived ? 'opacity-50 grayscale' : ''
             }`}
@@ -168,5 +247,7 @@ function GarmentCard({ garment }: { garment: Garment }) {
       </div>
       <p className="mt-1.5 truncate text-sm font-medium">{garment.name}</p>
     </Link>
+      </motion.div>
+    </div>
   );
 }

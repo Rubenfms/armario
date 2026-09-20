@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { CATEGORIES, type Category, type Garment } from '../db/types';
 import { CATEGORY_LABELS } from '../db/labels';
 import { ChipSelect, type ChipOption } from './ChipSelect';
@@ -65,8 +66,18 @@ export function WardrobeFilters({ garments, filters, onChange }: Props) {
           </button>
         )}
       </div>
+      <AnimatePresence initial={false}>
       {open && (
-        <div id="wardrobe-filters" className="mt-3 flex flex-col gap-2">
+        <motion.div
+          id="wardrobe-filters"
+          key="panel"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.22 }}
+          className="overflow-hidden"
+        >
+        <div className="mt-3 flex flex-col gap-2 pb-1">
           <ChipSelect
             label="Categoria"
             options={categories}
@@ -80,7 +91,9 @@ export function WardrobeFilters({ garments, filters, onChange }: Props) {
             <ChipSelect label="Etiqueta" options={tags} value={filters.tag} onChange={(v) => onChange({ ...filters, tag: v })} allLabel="Cualquier etiqueta" />
           )}
         </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

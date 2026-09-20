@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Category, Garment, Outfit, Season, WearLog } from '../db/types';
-import { generateOutfit, seasonForDate, suggest, toDateKey, usableOutfits, wornRecently } from './suggest';
+import { generateBest, generateOutfit, seasonForDate, suggest, toDateKey, usableOutfits, wornRecently } from './suggest';
 
 // --------------------------------------------------------------- fixtures
 
@@ -151,6 +151,38 @@ describe('generateOutfit', () => {
     expect(generateOutfit(wardrobe, 'verano', new Set())?.garments.map((g) => g.id)).not.toContain('coat');
     // Sin abrigo en el armario, el invierno no bloquea la generación.
     expect(generateOutfit(basicWardrobe(), 'invierno', new Set())?.garments).toHaveLength(3);
+  });
+});
+
+describe('generateBest', () => {
+  it('evita la combinación que peor puntúa cuando hay alternativas', () => {
+    const wardrobe = [
+      garment('superior', { id: 'top-rojo', colorHex: '#c8102e' }),
+      garment('superior', { id: 'top-blanco', colorHex: '#f4f4f2' }),
+      garment('inferior', { id: 'bottom-morado', colorHex: '#6b3fa0' }),
+      garment('inferior', { id: 'bottom-marino', colorHex: '#1c2a4d' }),
+      garment('calzado', { id: 'shoes', colorHex: '#161616' }),
+    ];
+    for (let i = 0; i < 30; i += 1) {
+      const result = generateBest(wardrobe, 'verano', new Set());
+      const ids = result?.garments.map((g) => g.id) ?? [];
+      // rojo + morado chocan: es la peor de las cuatro y nunca debe salir.
+      expect(ids.includes('top-rojo') && ids.includes('bottom-morado')).toBe(false);
+      expect(result?.score.total).toBeGreaterThan(0);
+    }
+  });
+
+  it('devuelve null si no hay combinación posible', () => {
+    expect(generateBest([garment('superior')], 'verano', new Set())).toBeNull();
+  });
+
+  it('las sugerencias llevan puntuación, guardadas y nuevas', () => {
+    const wardrobe = basicWardrobe();
+    const saved = outfit(['top', 'bottom', 'shoes']);
+    const a = suggest({ garments: wardrobe, outfits: [saved], wearLogs: [], today: SUMMER, random: sequence([0.1, 0]) });
+    const b = suggest({ garments: wardrobe, outfits: [], wearLogs: [], today: SUMMER });
+    expect(a?.score.parts).toHaveLength(5);
+    expect(b?.score.verdict).toBeTruthy();
   });
 });
 

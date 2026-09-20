@@ -1,4 +1,5 @@
 import { HashRouter, Route, Routes } from 'react-router-dom';
+import { MotionConfig } from 'motion/react';
 import { Layout } from './ui/Layout';
 import { HomePage } from './pages/HomePage';
 import { WardrobePage } from './pages/WardrobePage';
@@ -16,6 +17,9 @@ import { GarmentPage } from './pages/GarmentPage';
  */
 export function App() {
   return (
+    // reducedMotion="user": con «reducir movimiento» activado en el sistema,
+    // las animaciones de transformacion y desplazamiento se saltan.
+    <MotionConfig reducedMotion="user">
     <HashRouter>
       <Routes>
         <Route element={<Layout />}>
@@ -30,5 +34,6 @@ export function App() {
         </Route>
       </Routes>
     </HashRouter>
+    </MotionConfig>
   );
 }

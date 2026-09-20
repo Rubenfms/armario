@@ -53,7 +53,8 @@ body {
    escribe ahí con utilidades. */
 @utility btn {
   @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 font-medium
-    transition-colors select-none disabled:opacity-50;
+    transition-[color,background-color,transform] duration-150 select-none active:scale-[0.97]
+    disabled:opacity-50 motion-reduce:active:scale-100;
 }
 @utility btn-primary {
   @apply btn bg-accent text-white active:opacity-90;
@@ -69,7 +70,7 @@ body {
     placeholder:text-muted focus:border-accent focus:outline-none;
 }
 @utility chip {
-  @apply rounded-full border border-line bg-surface px-3 py-1.5 text-sm text-ink
+  @apply rounded-full border border-line bg-surface px-3 py-1.5 text-sm text-ink transition-[transform,background-color,border-color] duration-150 active:scale-95 motion-reduce:active:scale-100
     aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-white
     aria-checked:border-accent aria-checked:bg-accent aria-checked:text-white;
 }
