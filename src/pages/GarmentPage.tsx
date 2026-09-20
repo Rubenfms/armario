@@ -16,12 +16,15 @@ import { GarmentForm } from '../ui/GarmentForm';
 import { EmptyState } from '../ui/EmptyState';
 import { Loading } from '../ui/Loading';
 import { describeCutoutStatus, Spinner, useCutoutStatus } from '../ui/CutoutStatus';
+import { Partners } from '../ui/Partners';
 
 export function GarmentPage() {
   const { id = '' } = useParams<{ id: string }>();
   // get() resuelve undefined si no existe, igual que el estado de carga del
   // hook; se convierte a null para distinguir ambos casos.
   const garment = useLiveQuery(async () => (await db.garments.get(id)) ?? null, [id]);
+  // Para «combina con»: solo activas y con color; el filtrado fino lo hace bestPartners.
+  const candidates = useLiveQuery(() => db.garments.filter((g) => !g.archived && g.colorHex !== '').toArray());
   const src = useObjectUrl(garment ? displayImage(garment) : null);
   const status = useCutoutStatus(id);
   const [saved, setSaved] = useState(false);
@@ -103,6 +106,8 @@ export function GarmentPage() {
           Prenda archivada: no aparece en el armario ni en las sugerencias.
         </p>
       )}
+
+      <Partners garment={garment} candidates={candidates ?? []} />
 
       <GarmentForm
         // El color llega en segundo plano: la clave remonta el formulario para

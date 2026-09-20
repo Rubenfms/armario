@@ -11,6 +11,22 @@ import './styles.css';
 // página. Sin prompts: es una app personal y prefiero tener siempre la última.
 registerSW({ immediate: true });
 
+// La primera carga de todas llega sin service worker y, por tanto, sin las
+// cabeceras COOP/COEP que este añade (ver src/sw.ts): la página no está
+// aislada y el recorte iría a un hilo. En cuanto el SW toma el control, una
+// recarga (solo una: sessionStorage lo guarda) deja la app aislada. En las
+// actualizaciones el plugin ya recarga por su cuenta y esto no hace nada.
+navigator.serviceWorker?.addEventListener('controllerchange', () => {
+  if (crossOriginIsolated) return;
+  try {
+    if (sessionStorage.getItem('armario:coi-reload')) return;
+    sessionStorage.setItem('armario:coi-reload', '1');
+  } catch {
+    // Sin sessionStorage se recarga igualmente; el guard es solo por si acaso.
+  }
+  window.location.reload();
+});
+
 // Dexie abre la base sola en la primera consulta, pero abrirla ya crea los
 // almacenes y hace que un error de esquema salte al arrancar, no al usarla.
 const root = document.getElementById('app');

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Category, Garment } from '../db/types';
-import { formalityOf, hueRelation, scoreOutfit, toLch, verdictFor } from './style';
+import { bestPartners, formalityOf, hueRelation, scoreOutfit, toLch, verdictFor } from './style';
 
 let n = 0;
 function garment(category: Category, colorHex: string, overrides: Partial<Garment> = {}): Garment {
@@ -192,5 +192,32 @@ describe('total y veredicto', () => {
     expect(part(analog, 'armonia').note).toMatch(/vecinos/);
     const accent = scoreOutfit([garment('superior', LIGHT_BLUE), garment('inferior', BLUE)], 'verano');
     expect(part(accent, 'armonia').points).toBe(35);
+  });
+});
+
+describe('bestPartners', () => {
+  it('ordena las candidatas por nota, salta misma categoria, archivadas y sin color', () => {
+    const top = garment('superior', RED, { name: 'Camiseta roja' });
+    const candidates = [
+      garment('inferior', PURPLE, { name: 'Pantalon morado' }),
+      garment('inferior', BLACK, { name: 'Pantalon negro' }),
+      garment('inferior', NAVY, { name: 'Vaqueros' }),
+      garment('superior', WHITE, { name: 'Otra camiseta' }),
+      garment('calzado', WHITE, { name: 'Archivadas', archived: true }),
+      garment('calzado', '', { name: 'Sin color' }),
+      garment('calzado', BLACK, { name: 'Zapatos negros' }),
+    ];
+    const partners = bestPartners(top, candidates, 'verano');
+    const names = partners.map((p) => p.garment.name);
+    expect(names).toHaveLength(3);
+    expect(names).not.toContain('Otra camiseta');
+    expect(names).not.toContain('Archivadas');
+    expect(names).not.toContain('Sin color');
+    expect(names).not.toContain('Pantalon morado'); // rojo + morado chocan: la peor
+    expect(partners[0]!.score.total).toBeGreaterThanOrEqual(partners[2]!.score.total);
+  });
+
+  it('sin color en la prenda no propone nada', () => {
+    expect(bestPartners(garment('superior', ''), [garment('inferior', BLACK)], 'verano')).toEqual([]);
   });
 });

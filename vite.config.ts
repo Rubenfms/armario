@@ -61,30 +61,16 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
+      // Service worker propio (src/sw.ts): igual que el generado, más las
+      // cabeceras COOP/COEP que hacen posible el recorte multihilo.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
         // onnxruntime trae variante WebGPU y sus propios .wasm/.mjs; el worker
         // solo usa la variante WASM, y el runtime real llega del CDN de IMG.LY.
         globIgnores: ['**/ort.webgpu*', '**/*.wasm', '**/*.mjs'],
-        // Con HashRouter la única navegación real es a index.html; el resto
-        // va detrás del `#` y nunca llega al servidor ni al service worker.
-        navigateFallback: `${BASE}index.html`,
-        cleanupOutdatedCaches: true,
-        runtimeCaching: [
-          {
-            // Modelo ONNX y runtime WASM del recorte de fondo (~50 MB en
-            // trozos de 4 MB). Se descargan la primera vez que se recorta
-            // una prenda y a partir de ahí salen de aquí, también sin red.
-            // Las URLs llevan la versión del paquete: cambiarla invalida sola.
-            urlPattern: /^https:\/\/staticimgly\.com\/@imgly\/background-removal-data\//,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'modelo-recorte',
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
       },
       devOptions: { enabled: false },
     }),

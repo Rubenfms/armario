@@ -245,3 +245,24 @@ function sharedTags(garments: Garment[]): string[] {
   for (const g of garments) for (const t of new Set(g.tags)) counts.set(t, (counts.get(t) ?? 0) + 1);
   return [...counts.entries()].filter(([, n]) => n >= 2).map(([t]) => t);
 }
+
+// --------------------------------------------------------------- parejas
+
+export interface Partner {
+  garment: Garment;
+  score: StyleScore;
+}
+
+/**
+ * Con que prendas combina mejor una dada: se puntua cada pareja (la prenda
+ * mas una candidata de otra categoria, ambas con color detectado) y se
+ * devuelven las `limit` mejores. Archivadas fuera.
+ */
+export function bestPartners(garment: Garment, candidates: Garment[], season: Season, limit = 3): Partner[] {
+  if (!toLch(garment.colorHex)) return [];
+  return candidates
+    .filter((c) => c.id !== garment.id && !c.archived && c.category !== garment.category && toLch(c.colorHex) !== null)
+    .map((c) => ({ garment: c, score: scoreOutfit([garment, c], season) }))
+    .sort((a, b) => b.score.total - a.score.total || a.garment.name.localeCompare(b.garment.name, 'es'))
+    .slice(0, limit);
+}
