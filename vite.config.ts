@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -16,6 +17,10 @@ const BASE = '/armario/';
 
 export default defineConfig({
   base: BASE,
+  test: {
+    include: ['src/**/*.test.ts'],
+    environment: 'node',
+  },
   build: {
     target: 'es2022',
     sourcemap: true,
