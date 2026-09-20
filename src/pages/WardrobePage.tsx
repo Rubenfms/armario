@@ -8,6 +8,8 @@ import { setPendingPhoto } from '../lib/pendingPhoto';
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { PhotoPicker } from '../ui/PhotoPicker';
 import { CutoutBadge } from '../ui/CutoutStatus';
+import { Loading } from '../ui/Loading';
+import { activeCount, applyFilters, NO_FILTERS, WardrobeFilters, type Filters } from '../ui/WardrobeFilters';
 
 export function WardrobePage() {
   // Las más recientes primero dentro de cada categoría.
@@ -15,6 +17,7 @@ export function WardrobePage() {
     db.garments.toArray((all) => all.sort((a, b) => b.createdAt - a.createdAt)),
   );
   const [showArchived, setShowArchived] = useState(false);
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [pickerOpen, setPickerOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -24,10 +27,13 @@ export function WardrobePage() {
     navigate('/armario/nueva');
   }
 
-  if (!garments) return null; // Dexie resuelve en milisegundos: sin spinner.
+  if (!garments) return <Loading />;
 
-  const active = garments.filter((g) => !g.archived);
-  const archived = garments.filter((g) => g.archived);
+  const filtering = activeCount(filters) > 0;
+  const filtered = applyFilters(garments, filters);
+  const active = filtered.filter((g) => !g.archived);
+  const archived = filtered.filter((g) => g.archived);
+  const isEmpty = garments.length === 0;
 
   return (
     <>
@@ -40,10 +46,15 @@ export function WardrobePage() {
         )}
       </header>
 
-      {active.length === 0 && archived.length === 0 ? (
+      {!isEmpty && <WardrobeFilters garments={garments} filters={filters} onChange={setFilters} />}
+
+      {isEmpty ? (
         <EmptyWardrobe />
+      ) : active.length === 0 && archived.length === 0 ? (
+        <p className="text-sm text-muted">Ninguna prenda coincide con los filtros.</p>
       ) : (
         <div className="flex flex-col gap-6">
+          {filtering && active.length === 0 && <p className="text-sm text-muted">Solo hay coincidencias entre las archivadas.</p>}
           {CATEGORIES.map((category) => {
             const items = active.filter((g) => g.category === category);
             if (items.length === 0) return null;

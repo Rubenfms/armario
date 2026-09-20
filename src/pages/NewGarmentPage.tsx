@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { addGarment, type GarmentFields } from '../db/garments';
 import { takePendingPhoto } from '../lib/pendingPhoto';
 import { enqueueCutout } from '../lib/cutout';
+import { requestPersistence } from '../lib/storage';
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { EMPTY_FIELDS, GarmentForm } from '../ui/GarmentForm';
 import { PhotoPicker } from '../ui/PhotoPicker';
@@ -23,6 +24,9 @@ export function NewGarmentPage() {
     try {
       const id = await addGarment(fields, photo);
       enqueueCutout(id);
+      // A partir de la primera prenda hay algo que perder: que el navegador
+      // no vacíe IndexedDB para hacer sitio. Si lo deniega, no pasa nada.
+      void requestPersistence();
       navigate('/armario', { replace: true });
     } catch (err) {
       console.error(err);

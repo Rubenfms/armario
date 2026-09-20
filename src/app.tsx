@@ -6,6 +6,7 @@ import { NewGarmentPage } from './pages/NewGarmentPage';
 import { OutfitsPage } from './pages/OutfitsPage';
 import { NewOutfitPage } from './pages/NewOutfitPage';
 import { OutfitPage } from './pages/OutfitPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { GarmentPage } from './pages/GarmentPage';
 
 /**
@@ -25,6 +26,7 @@ export function App() {
           <Route path="/outfits/nuevo" element={<NewOutfitPage />} />
           <Route path="/outfit/:id" element={<OutfitPage />} />
           <Route path="/prenda/:id" element={<GarmentPage />} />
+          <Route path="/ajustes" element={<SettingsPage />} />
         </Route>
       </Routes>
     </HashRouter>

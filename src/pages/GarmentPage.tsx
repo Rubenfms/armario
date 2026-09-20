@@ -14,6 +14,7 @@ import { enqueueCutout } from '../lib/cutout';
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { GarmentForm } from '../ui/GarmentForm';
 import { EmptyState } from '../ui/EmptyState';
+import { Loading } from '../ui/Loading';
 import { describeCutoutStatus, Spinner, useCutoutStatus } from '../ui/CutoutStatus';
 
 export function GarmentPage() {
@@ -26,7 +27,7 @@ export function GarmentPage() {
   const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
 
-  if (garment === undefined) return null; // cargando
+  if (garment === undefined) return <Loading />;
 
   if (garment === null) {
     return (

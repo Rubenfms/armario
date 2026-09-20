@@ -5,6 +5,7 @@ import { db } from '../db/db';
 import { deleteOutfit, updateOutfit, type OutfitFields } from '../db/outfits';
 import { EmptyState } from '../ui/EmptyState';
 import { OutfitEditor } from '../ui/OutfitEditor';
+import { Loading } from '../ui/Loading';
 
 export function OutfitPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -19,7 +20,7 @@ export function OutfitPage() {
   const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
 
-  if (outfit === undefined || garments === undefined) return null;
+  if (outfit === undefined || garments === undefined) return <Loading />;
 
   if (outfit === null) {
     return (

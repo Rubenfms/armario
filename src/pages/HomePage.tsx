@@ -10,6 +10,8 @@ import { REST_DAYS, suggest, toDateKey, usableOutfits, type Suggestion } from '.
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { CollageView } from '../ui/CollageView';
 import { EmptyState } from '../ui/EmptyState';
+import { Loading } from '../ui/Loading';
+import { StorageWarning } from '../ui/StorageWarning';
 
 export function HomePage() {
   const today = new Date();
@@ -43,7 +45,7 @@ export function HomePage() {
     setReady(true);
   }, [loaded, ready, garments, outfits, recentLogs, todayKey]);
 
-  if (!loaded || !ready) return null;
+  if (!loaded || !ready) return <Loading />;
 
   const active = garments.filter((g) => !g.archived);
   if (active.length === 0) {
@@ -145,10 +147,21 @@ function Title({ todayKey }: { todayKey: string }) {
     month: 'long',
   });
   return (
-    <header className="mb-4">
-      <h1 className="text-2xl font-semibold">Hoy</h1>
-      <p className="text-sm text-muted first-letter:uppercase">{label}</p>
-    </header>
+    <>
+      <header className="mb-4 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Hoy</h1>
+          <p className="text-sm text-muted first-letter:uppercase">{label}</p>
+        </div>
+        <Link to="/ajustes" aria-label="Ajustes" className="-mr-2 p-2 text-muted">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+          </svg>
+        </Link>
+      </header>
+      <StorageWarning />
+    </>
   );
 }
 

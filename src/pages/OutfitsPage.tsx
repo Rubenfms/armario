@@ -6,6 +6,7 @@ import type { Outfit } from '../db/types';
 import { useObjectUrl } from '../lib/useObjectUrl';
 import { CollageView } from '../ui/CollageView';
 import { TagFilter } from '../ui/TagFilter';
+import { Loading } from '../ui/Loading';
 
 export function OutfitsPage() {
   const outfits = useLiveQuery(() =>
@@ -15,7 +16,7 @@ export function OutfitsPage() {
   const [tag, setTag] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  if (!outfits || garmentCount === undefined) return null;
+  if (!outfits || garmentCount === undefined) return <Loading />;
 
   const tags = [...new Set(outfits.flatMap((o) => o.tags))].sort((a, b) => a.localeCompare(b, 'es'));
   const visible = tag === null ? outfits : outfits.filter((o) => o.tags.includes(tag));

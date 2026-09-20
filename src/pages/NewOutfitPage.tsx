@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { addOutfit, type OutfitFields } from '../db/outfits';
 import { EMPTY_OUTFIT, OutfitEditor } from '../ui/OutfitEditor';
+import { Loading } from '../ui/Loading';
 
 export function NewOutfitPage() {
   const garments = useLiveQuery(() => db.garments.filter((g) => !g.archived).toArray());
@@ -14,7 +15,7 @@ export function NewOutfitPage() {
   const state = useLocation().state as { garmentIds?: unknown } | null;
   const preselected = Array.isArray(state?.garmentIds) ? state.garmentIds.filter((id): id is string => typeof id === 'string') : [];
 
-  if (!garments) return null;
+  if (!garments) return <Loading />;
 
   async function handleSubmit(fields: OutfitFields) {
     setSaving(true);

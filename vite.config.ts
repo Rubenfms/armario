@@ -36,6 +36,7 @@ export default defineConfig({
       // El plugin usa esto para el scope y para las rutas del precache.
       base: BASE,
       scope: BASE,
+      // Iconos y pantallas de arranque: pequeños y los pide el sistema, no la app.
       includeAssets: ['icons/*.png', '.nojekyll'],
       manifest: {
         id: BASE,
